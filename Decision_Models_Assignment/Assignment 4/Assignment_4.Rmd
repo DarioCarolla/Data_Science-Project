@@ -1,0 +1,497 @@
+---
+title: "Dario Carolla 807547 - Assignment 4"
+output:
+  html_document:
+    df_print: paged
+---
+```{r, echo=FALSE, results='hide', warning=FALSE, message=FALSE}
+#Library
+library(pracma)
+library(curry)
+library(tidyverse)
+library(zoo)
+library(pander)
+library(reshape2)
+```
+
+#The Flow Shop Scheduling Problem
+
+I Flow Shop Scheduling Problem, sono una classe di problemi con le seguenti caratteristiche:
+
+* in input si hanno n macchine ed m lavori;
+* Ogni lavoro deve essere elaborato in tutte le macchine seguendo lo stesso ordine, ovvero l'i-esima operazione del lavoro deve essere eseguita sull'i-esima macchina.
+
+Inoltre, si assume che le macchine non possano lavorare su più di un processo contemporaneamente e che per ogni lavoro il tempo di funzionamento in ciascuna macchina sia diverso e conosciuto all'inizio.
+Si può presumere che l'ordine in cui vengono elaborati i lavori sia esattamente lo stesso per tutte le macchine.
+L'obiettivo del problema è trovare un ordine dei lavori che riduca al minimo il tempo totale di esecuzione del lavoro (chiamato anche *makepan*) che corrisponde al tempo in cui tutti i lavori vengono elaborati.
+
+
+Per risolvere il flow shop scheduling problem è stata proposta l'implementazione di un **algoritmo genetico**.
+
+Gli Algoritmi Genetici (GA) sono finalizzati alla risoluzione di problemi di ricerca e ottimizzazione. Sono basatim concettualmente, sui principi che regolano l'evoluzione naturale delle specie.
+L'idea che sta alla base degli AG è quindi quella di selezionare le soluzioni migliori e di ricombinarle in qualche modo fra loro in maniera tale che esse evolvano verso un punto di ottimo.
+
+Nel linguaggio degli AG la funzione da massimizzare prende il nome di *fitness* (F). Si supponga che la funzione di fitness dipenda da n variabili, allora, $F = f(x_1, x_1, … , x_n)$. Un insieme di *individui* (spesso chiamati cromosomi) forma una *popolazione*. Si parla di *generazione* per indicare la popolazione in un dato istante di tempo.
+
+In natura, gli individui si riproducono mescolando così i propri patrimoni genetici. I nuovi individui generati avranno, pertanto, un patrimonio genetico derivato in parte dal padre ed in parte dalla madre. La selezione naturale, cioè la sopravvivenza di individui con caratteristiche migliori, fa sì che riescano a sopravvivere e quindi a riprodursi solo gli individui "più adatti", cioè, nel caso degli GA, quelli con la fitness più elevata, e dunque,  più vicini all’ottimo. La fitness media della popolazione tenderà quindi ad aumentare con le generazioni, portando così la specie ad evolversi nel tempo.
+
+La selezione di uno specifico individuo dipende, dunque, dal suo valore di fitness. Un valore più alto di fitness corrisponde ad una maggior probabbilità per l'individuo di essere scelto come genitore per creare la nuova generazione.
+
+L'algoritmo genetico è costituito dalle seguenti fasi:
+
+1. Definire un primo insieme casuale di possibili soluzioni al problema in esame.
+2. Valutare ogni soluzione, associando a ciascuna un indicatore di qualità (o fitness) in modo da poterle ordinare.
+3. Definire un nuovo gruppo di soluzioni modificando opportunamente le soluzioni con qualità elevata, in modo da favorire lo sviluppo a scapito di quelle peggiori.
+4. Se il numero di iterazioni stabilite è stato raggiunto o la qualità della migliore soluzione disponibile è accettabile si può terminare l’elaborazione, altrimenti si ritorna al passo 2 per definire un nuovo gruppo di soluzioni
+
+### Funzione di Fitness
+Nel seguente codice è stata implementata la funzione di fitness che verrà utilizzata dall'algoritmo genetico. Il compito della funzione di fitness è, data una matrice contenente sulle colonne i lavori e sulle righe le macchine, calcolare il tempo totale per eseguire tutti i lavori con tutte le macchine con una data sequenza di lavori.
+
+<center>
+![](/Users/dario/Desktop/es.png)
+</center>
+
+```{r}
+set.seed(4062019)
+jobs_time <- function(mat, seq){
+  mat <- mat[, seq]
+  m <- matrix(0, nrow = nrow(mat), ncol = ncol(mat))
+  for (row in 1:nrow(mat)) {
+    for (col in 1:ncol(mat)) {
+      #-- caso base prima cella
+      if(row == 1 & col == 1){
+        m[row, col] <- mat[row, col]
+      }
+      
+      #-- caso base prima riga
+      else if(row == 1){
+        m[row, col] <- mat[row, col] + m[row, col - 1]
+      }
+      
+      else{
+        #-- prima colonna
+        if(col == 1){
+          m[row, col] <- m[row-1, col] + mat[row, col]
+        }
+        #-- passo successivo
+        else{
+          if(m[row, col-1] <= m[row-1, col]){
+            m[row, col] <- mat[row, col] +  m[row-1, col]
+          }
+          else{
+            m[row, col] <- mat[row, col] +  m[row, col-1]
+          }
+        }
+      }
+    }
+  }
+  return(1/as.integer(m[nrow(m), ncol(m)]))
+}
+```
+
+```{r}
+mat <- read.table("~/Desktop/matrix/mat5x20.txt", quote="\"", comment.char="")
+matrice <- as.matrix(mat)
+```
+
+
+### Generazione e valutazione della popolazione
+Nei seguente blocco di codice viene creata una popolazione generale e successivamente valutata in base alla fitness
+```{r}
+nWorks = ncol(matrice)
+
+generateRandomWork <- function(){
+  vet <- c(1:nWorks) 
+  randperm(vet) 
+}
+
+generateRandomPopulation <- function(popSize){
+  t(replicate(popSize, generateRandomWork()))
+}
+
+evaluateWork <- function(fitFun, works){
+  fitFun(matrice, works)
+}
+
+evaluatePopulation <- function(pop){
+  data.frame(index = c(1:nrow(pop)), fit = apply(pop, 1, curry(evaluateWork, jobs_time)))
+}
+
+populationStats <- function(gen, scores){
+  bestScore <- max(scores$fit)
+  avgScore <- mean(scores$fit)
+  medianScore <- median(scores$fit)
+  item = list(gen = gen, best = bestScore, avg = avgScore, median =medianScore )
+  class(item)<- "traceItem"
+  return(item)
+}
+```
+
+### Selezione proporzionale della fitness
+La selezione proporzionale della fitness, nota anche come **roulette wheel selection**, è un operatore genetico utilizzato negli algoritmi genetici per selezionare soluzioni potenzialmente utili per la ricombinazione.
+
+Nella selezione proporzionale della fitness, la funzione fitness assegna una fitness a possibili soluzioni o cromosomi. Questo livello di fitness viene utilizzato per associare una probabilità di selezione ad ogni singolo cromosoma.
+
+Se $f_i$ è la fitness dell'individuo i nella popolazione, la sua probabilità di essere selezionato corrisponde a:
+$$p_i = \frac{f_i}{\sum_{j = 1}^{N} f_j}$$
+dove N è il numero di individui nella popolazione.
+```{r}
+rouletteSelection <- function(scores, pop){
+  idx = sample_n(scores, size = 2, replace = F, weight = scores$fit)$index
+  pop[idx, ]
+}
+```
+
+### Crossover e Mutation
+Per la creazione di nuovi individui ad ogni generazione si utilizzano due operazioni ispirate dall’evoluzionismo biologico: il crossover e la mutazione. Una volta individuata una coppia di genitori con il meccanismo della selezione, i loro genomi possono andare incontro a ciascuna delle due operazioni con probabilità rispettivamente $P_cross$ (probabilità di crossover per coppia di individui, detta crossover rate) e $P_mut$ (probabilità di mutazione per gene, detta mutation rate).
+
+**Crossover**
+L'operatore di crossover è una funzione a cui come input vengono foriniti due individui e ne vengono generano due nuovi unendo dei sotto-individui dei genitori. Esisto diverse tipi di Crossover, in questo caso è stato implementato l'oreder crossover. Sostanzialmente questo tipo di crossover stabilisce un sotto-individuo del genitore uno, ed i valori mancanti sono posizionati in base all'ordine dei valori nel genitore due.
+
+<center>
+Genitore 1: 1 2 **3 4 5 6** 7 8 9
+
+Genitore 2: **9 8 7** 6 5 4 3 **2 1**
+
+Figlio: 9 8 3 4 5 6 7 3 2 1
+</center>
+
+
+```{r}
+#CrossOver
+generateOffspring <- function(p1, p2){
+  swath = round(nWorks/2)
+  cut1 = sample(nWorks - swath, 1)
+  cut2 = cut1 + swath-1
+  off1 = rep(0, nWorks)
+  sel = p1[cut1:cut2]
+  off1[cut1:cut2]= sel
+  r = p2[!p2 %in% sel]
+  r1= r[c(1:cut1-1)]
+  r2= r[c(cut1:length(r))]
+  off1[c(1:cut1-1)] = r1
+  off1[c((cut2+1):length(off1))] = r2
+  off1
+}
+```
+
+
+**Mutation**
+La mutazione può essere definita come un piccolo cambiamento casuale in un individuo, per ottenere una nuova soluzione. È usato per mantenere e introdurre la diversità nella popolazione genetica e viene solitamente applicato con una bassa probabilità. In caso di mutazione, vengono selezionate due posizioni a caso sull'individuo ed i valori vengono scambiati.
+```{r}
+swapMutation <- function(p){
+  pos = sample(nWorks, 2)
+  p[c(pos[1], pos[2])] = p[c(pos[2], pos[1])]
+  p
+}
+```
+
+### Algoritmo principale
+All'interno del seguente codice viene eseguito il vero e proprio algoritmo.
+È stata implementata la funzione simpleGA() la quale riceve in input:
+
+* popSize: grandezza della popolazione, impostata di default a 200;
+* crossProb: probabilità di crossover, impostata di default a 0.8;
+* mutProbability: probabilità di mutazione, impostata di default a 0.2;
+* numGenerations: numero di generazioni massime, impostata di default a 1000.
+
+La funzione è stata testata con una prima matrice di dimentisioni 5x20, dunque, costituita da 5 macchine e 20 lavori.
+```{r}
+trace2Dataframe <- function(trace){
+  bestVect=NULL
+  genVect = NULL
+  avgVect=NULL
+  medianVect =NULL
+  for (i in seq(1,length(trace), by = 4)) {
+    gen <- trace[i]$gen
+    genVect = append(genVect, gen)
+    best <- trace[i+1]$best
+    bestVect = append(bestVect, best)
+    avg <- trace[i+2]$avg
+    avgVect <- append(avgVect, avg)
+    med <- trace[i+3]$median
+    medianVect <- append(medianVect, med)
+  }
+  df <- data.frame(Gen= genVect, Best=bestVect, Avg=avgVect, Median=medianVect)
+  return(df)
+}
+
+
+simpleGA <- function(popSize = 200, crossProb = 0.8, mutProbability = 0.2, numGenerations = 1000) {
+  pop <- generateRandomPopulation(popSize)
+  trace = NULL
+  for (gen in c(1:numGenerations)) {
+    newPop = NULL
+    scores <- evaluatePopulation(pop)
+    newPop <- rbind(newPop, pop[head(scores[order(scores$fit,decreasing = T), ],2)$index,])
+    if(!(gen %% 50) ) {
+      trace <- append(trace, populationStats(gen,scores))
+    }
+    for (i in c(2:(popSize/2))) {
+      #selection
+      parents <- rouletteSelection(scores, pop)
+      #crossover
+      if (runif(1)<=crossProb) {
+        off1 <- generateOffspring(parents[1,], parents[2,])
+        off2 <- generateOffspring(parents[2,], parents[1,])
+      }
+      else{
+        off1 <- parents[1,]; off2<- parents[2,]
+      }
+      newPop <- rbind(newPop, as.array(off1), as.array(off2))
+    }
+    # mutation
+    for (i in c(1:popSize)) {
+      if(runif(1) <= mutProbability){
+        newPop[i,] <- swapMutation(newPop[i,])
+      }
+    }
+    pop = newPop
+  }
+  result <- as.data.frame(pop)
+  result <- result %>%
+    unite(Sequenza, c(colnames(result)), sep = " ", remove = FALSE)
+  result$res <- scores$fit
+  result <- result[, c(1, ncol(result))]
+  max <- max(result$res)
+  result <- result[result$res == max, ]
+  m <- as.numeric(result$res[1])
+  result$res <- NULL
+  rownames(result) <- c()
+  cat(
+  "GA settings:\n",
+  "Population size       = ",  popSize, "\n",
+  "Number of generations = ", numGenerations, "\n",
+  "Crossover probability = ",  crossProb, "\n",
+  "Mutation probability  = ",  mutProbability, "\n",
+  "GA results: \n",
+  "Fitness function value = ", m, "\n",
+  "Solutions = \n")
+  write.table(result, sep="\t", col.names = F, row.names = F)
+  
+  return(trace2Dataframe(trace))
+}
+
+mat5x20 <- simpleGA()
+```
+
+Naturalmente, i risultati ottenuti possono variare in base ai parametri utilizzati per la funzione. In questo caso sono stati utilizzati i parametri di default, dunque popSize = 200, crossProb = 0.8, mutProbability = 0.2, numGenerations = 1000. Con tali valori il tempo di lavoro complessivo minimizzato, dalla funzione di fitness, risulta essere `r 1/max(mat5x20$Best)`.
+
+### Pacchetto GA
+All'interno del pacchetto *GA* di R è già presente un'implementazione dell'algoritmo genetico.
+Anche la funzione ga() è stata testata sulla stessa matrice 5x20 per poterne osservare le eventuali differenze.
+
+```{r}
+library(GA)
+mat5x20_GA_fit <- ga(type = "permutation",
+          fitness = jobs_time,
+          mat = matrice,
+          lower = 1,
+          upper = 20,
+          popSize = 200,
+          maxiter = 1000,
+          run = 1000,
+          pmutation = 0.2,
+          keepBest = TRUE,
+          monitor = FALSE)
+
+mat5x20_GA <- summary(mat5x20_GA_fit)
+mat5x20_GA
+```
+
+LA funzio di R ga() è stata testata con gli stessi parametri utilizzati per la funzione simpleGA().
+Come è possibile osservare la funzione ga() restituisce molte più combinazioni di lavori, ed il tempo di lavoro minimo, secondo la funzione di fitness, risulta essere `r 1/mat5x20_GA$fitness`. Come è possibile osservare, la funzione ga(), con gli stessi parametri utilizzati per la funzione simpleGA(), restituisce delle combinazioni che impiegano un tempo `r if(1/max(mat5x20$Best) > 1/mat5x20_GA$fitness) "minore" else "maggiore"` rispetto alla funzione simpleGA(). 
+
+Di seguito sono stati implementati i grafici che rappresentano i valori migliori, medi e mediani rilevati nelle varie iterazioni degli algoritmi.
+```{r}
+plot_simpleGA <- function(df){
+  ggplot(df, aes(x = Gen, y = value, group = variable, colour = variable)) +
+    xlab("Iteration") + ylab("Fitness values") +
+    geom_point(aes(shape = variable), size=0.5) +
+    geom_line(aes(lty = variable)) +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold")) +
+    labs(title = "Esecuzione funzione simpleGA()")
+}
+plot_simpleGA(df5x20)
+```
+
+```{r}
+plot(mat5x20_GA_fit, main = "Esecuzione funzione ga()")
+```
+
+### Test su differenti matrici
+Di seguito i due algoritmi verranno testati su matrici di diverse dimensioni.
+
+La matrici utilizzate sono state scaricate dal sito web [linkedphrase][http://mistic.heig-vd.ch/taillard/problemes.dir/ordonnancement.dir/ordonnancement.html].
+
+Tutte le matrici verrano testate con i seguenti valori di input:
+
+* popSize = 200;
+* crossProb = 0.8;
+* mutProbability = 0.2;
+* numGenerations = 1000.
+
+
+## Matrice 10x20
+La seguente matrice è costituita da 10 macchine e 20 lavori.
+
+Secondo il sito da cui è stata scaricata l'intervallo degli ottimi è dato da [1448, 1582]
+```{r}
+mat <- read.table("~/Desktop/matrix/mat10x20.txt", quote="\"", comment.char="")
+matrice <- as.matrix(mat)
+```
+
+```{r, echo=FALSE}
+nWorks = ncol(matrice)
+generateRandomWork <- function(){
+  vet <- c(1:nWorks) 
+  randperm(vet) 
+}
+generateRandomPopulation <- function(popSize){
+  t(replicate(popSize, generateRandomWork()))
+}
+evaluateWork <- function(fitFun, works){
+  fitFun(matrice, works)
+}
+evaluatePopulation <- function(pop){
+  data.frame(index = c(1:nrow(pop)), fit = apply(pop, 1, curry(evaluateWork, jobs_time)))
+}
+populationStats <- function(gen, scores){
+  bestScore <- max(scores$fit)
+  avgScore <- mean(scores$fit)
+  medianScore <- median(scores$fit)
+  item = list(gen = gen, best = bestScore, avg = avgScore, median =medianScore )
+  class(item)<- "traceItem"
+  return(item)
+}
+rouletteSelection <- function(scores, pop){
+  idx = sample_n(scores, size = 2, replace = F, weight = scores$fit)$index
+  pop[idx, ]
+}
+generateOffspring <- function(p1, p2){
+  swath = round(nWorks/2)
+  cut1 = sample(nWorks - swath, 1)
+  cut2 = cut1 + swath-1
+  off1 = rep(0, nWorks)
+  sel = p1[cut1:cut2]
+  off1[cut1:cut2]= sel
+  r = p2[!p2 %in% sel]
+  r1= r[c(1:cut1-1)]
+  r2= r[c(cut1:length(r))]
+  off1[c(1:cut1-1)] = r1
+  off1[c((cut2+1):length(off1))] = r2
+  off1
+}
+swapMutation <- function(p){
+  pos = sample(nWorks, 2)
+  p[c(pos[1], pos[2])] = p[c(pos[2], pos[1])]
+  p
+}
+trace2Dataframe <- function(trace){
+  bestVect=NULL
+  genVect = NULL
+  avgVect=NULL
+  medianVect =NULL
+  for (i in seq(1,length(trace), by = 4)) {
+    gen <- trace[i]$gen
+    genVect = append(genVect, gen)
+    best <- trace[i+1]$best
+    bestVect = append(bestVect, best)
+    avg <- trace[i+2]$avg
+    avgVect <- append(avgVect, avg)
+    med <- trace[i+3]$median
+    medianVect <- append(medianVect, med)
+  }
+  df <- data.frame(Gen= genVect, Best=bestVect, Avg=avgVect, Median=medianVect)
+  return(df)
+}
+simpleGA <- function(popSize = 200, crossProb = 0.8, mutProbability = 0.2, numGenerations = 1000) {
+  pop <- generateRandomPopulation(popSize)
+  trace = NULL
+  for (gen in c(1:numGenerations)) {
+    newPop = NULL
+    scores <- evaluatePopulation(pop)
+    newPop <- rbind(newPop, pop[head(scores[order(scores$fit,decreasing = T), ],2)$index,])
+    if(!(gen %% 50) ) {
+      trace <- append(trace, populationStats(gen,scores))
+    }
+    for (i in c(2:(popSize/2))) {
+      #selection
+      parents <- rouletteSelection(scores, pop)
+      #crossover
+      if (runif(1)<=crossProb) {
+        off1 <- generateOffspring(parents[1,], parents[2,])
+        off2 <- generateOffspring(parents[2,], parents[1,])
+      }
+      else{
+        off1 <- parents[1,]; off2<- parents[2,]
+      }
+      newPop <- rbind(newPop, as.array(off1), as.array(off2))
+    }
+    # mutation
+    for (i in c(1:popSize)) {
+      if(runif(1) <= mutProbability){
+        newPop[i,] <- swapMutation(newPop[i,])
+      }
+    }
+    pop = newPop
+  }
+  result <- as.data.frame(pop)
+  result <- result %>%
+    unite(Sequenza, c(colnames(result)), sep = " ", remove = FALSE)
+  result$res <- scores$fit
+  result <- result[, c(1, ncol(result))]
+  max <- max(result$res)
+  result <- result[result$res == max, ]
+  m <- as.numeric(result$res[1])
+  result$res <- NULL
+  rownames(result) <- c()
+  cat(
+  "GA settings:\n",
+  "Population size       = ",  popSize, "\n",
+  "Number of generations = ", numGenerations, "\n",
+  "Crossover probability = ",  crossProb, "\n",
+  "Mutation probability  = ",  mutProbability, "\n",
+  "GA results: \n",
+  "Fitness function value = ", m, "\n",
+  "Solutions = \n")
+  write.table(result, sep="\t", col.names = F, row.names = F)
+  return(trace2Dataframe(trace))
+}
+```
+
+**Test simpleGA()**
+```{r}
+mat10x20 <- simpleGA()
+```
+
+Il tempo di lavoro complessivo minimizzato, dalla funzione di fitness, risulta essere `r 1/max(mat10x20$Best)`.
+
+**Test ga()**
+```{r}
+mat10x20_GA_fit <- ga(type = "permutation",
+          fitness = jobs_time,
+          mat = matrice,
+          lower = 1,
+          upper = 20,
+          popSize = 200,
+          maxiter = 1000,
+          run = 1000,
+          pmutation = 0.2,
+          keepBest = TRUE,
+          monitor = FALSE)
+
+mat10x20_GA <- summary(mat10x20_GA_fit)
+mat10x20_GA
+```
+Il tempo di lavoro minimo, secondo la funzione di fitness, risulta essere `r 1/mat10x20_GA$fitness`. Come è possibile osservare, la funzione ga(), con gli stessi parametri utilizzati per la funzione simpleGA(), restituisce delle combinazioni che impiegano un tempo `r if(1/max(mat10x20$Best) > 1/mat10x20_GA$fitness) "minore" else "maggiore"` rispetto alla funzione simpleGA(). 
+
+Di seguito i grafici rappresentanti le esecuzioni dei due algoritmi sulla matrice 10x20
+```{r}
+plot_simpleGA(mat10x20)
+```
+
+```{r}
+plot(mat10x20_GA_fit, main = "Esecuzione funzione ga()")
+```
+

@@ -1,0 +1,32 @@
+name: MC Manufacturing
+variables:
+    Quantity1: 100
+    Quantity2: 200
+    Fixed Setup Cost: 250
+    Marginal Manufacturing Cost: 2
+    Disco pay: 5
+    cost_100: Quantity1 * Marginal Manufacturing Cost + Fixed Setup Cost
+    cost_200: Quantity2 * Marginal Manufacturing Cost + Fixed Setup Cost
+    Revenue100: Disco pay * Quantity1
+    Revenue200: Disco pay * Quantity2
+    Net_profit1: Revenue100 - cost_100
+    Net_profit2: Revenue200 - cost_100 - cost_100
+    Net_profit3: Revenue100 - cost_200
+    Net_profit4: Revenue200 - cost_200
+type: decision
+100 boards:
+    type: chance
+    DISCO buy 100:
+        p: 0.5
+        payoff: Net_profit1
+    DISCO buy 200:
+        p: 0.5
+        payoff: Net_profit2
+200 boards:
+    type: chance
+    DISCO buy 100:
+        p: 0.5
+        payoff: Net_profit3
+    DISCO buy 200:
+        p: 0.5
+        payoff: Net_profit4

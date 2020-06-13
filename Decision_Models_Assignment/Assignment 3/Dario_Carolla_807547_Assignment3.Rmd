@@ -1,0 +1,372 @@
+---
+title: "Dario Carolla 807547 - Assignment 3"
+output:
+  html_document: default
+  word_document: default
+  editor_options:
+    chunk_output_type: inline
+  pdf_document: default
+---
+# The free position facility location problem
+Lo scopo del problema è decidere il posizionamento di una struttura che distribuisce un determinato bene ad un gruppo di consumatori. La posizione deve essere scelta in modo tale da ridurre al minimo la distanza totale tra la struttura e tutti i cosumatori. I dati in input sono costituiti dalle posizioni di 100 consumatori.
+```{r, results='hide', warning=FALSE, message=FALSE}
+#Caricamento librerie e dati consumatori
+library(xlsx)
+library(ggplot2)
+library(dplyr)
+library(magrittr) 
+library(Hmisc)
+library(pander)
+library(kableExtra)
+
+df <- read.csv("~/Downloads/consumer_locations.csv")
+```
+
+I consumatori sono distribuiti su un piano nel seguente modo:
+```{r}
+#plot dati
+plot <- ggplot(df, aes(x = x, y = y)) + 
+  geom_point(size = 1) +
+  theme_gray()
+plot
+```
+
+### Distance function
+Data la posizione della struttura $f=(\chi, \nu)$ e di un consumatore $p_i = (x_i, y_i)$ è richiesto di utilizzare la seguente formula per calcolare la distanza tra loro:
+$$d(f, p_i) = log((χ − x_i)^2 + 1) + log((υ − y_i)^2 + 1)$$
+Dovendo minimizzare la distanza tra la struttura e tutti i consumatori, la precedente formula deve essere considerata come una sommatoria:
+$$d(f, p_i) = \sum_{i = 1}^{100}log((χ − x_i)^2 + 1) + log((υ − y_i)^2 + 1)$$
+```{r}
+fun <- function(chi, nu, df){
+  res <- 0
+  for (i in c(1:nrow(df))) {
+    res <- (log((chi - df$x[i])^2 + 1)) + (log((nu - df$y[i])^2 + 1)) + res
+  }
+  return(res)
+}
+```
+
+### Gradiend Descent method
+Per risolvere il problema di minimizzazione è stato utilizzato il metodo del gradiente discendente.
+Il gradiente discendente è un algoritmo di ottimizzazione che ha lo scopo di trovare un minimo locale di una funzione.
+
+L'algoritmo si basa sul fatto che, per una data funzione $f(x)$, la direzione di massima discesa $p_k$ in un punto $x_i$ corrisponde a quella determinata da: $$p_k = -\nabla f(x_i)$$ In questo modo la direzione di discesa tenderà ad un punto di minimo di $f$. Il metodo del gradiente prevede dunque di partire da un punto iniziale $x_0$ scelto arbitrariamente e di procedere iterativamente aggiornandola come:
+$$x_{k+1} = x_k + \alpha_kp_k$$
+dove $\alpha_k$ corrisponde alla lunghezza del **passo** di discesa che corrisponde alla velocità con cui l'algoritmo convergerà alla soluzione richiesta.
+
+Si noti che, a seconda della scelta del passo di discesa ed al punto iniziale arbitrariamente scelto, l'algoritmo potrà convergere ad uno qualsiasi dei minimi della funzione $f$, sia che quest'ultimo sia locale o globale. In particolare, per quanto riguarda la funzione di distanza considerata, il suo gradiente è dato da: $$(\sum_{i = 1}^{100}\frac{2*(\chi-x_i)}{(\chi-x_i)^2 + 1}, \space \space \sum_{i = 1}^{100}\frac{2*(\nu-y_i)}{(\nu-y_i)^2 + 1})$$
+
+Tramite la seguente funzione *gradiet()* è stato implementato il calcolo del gradiente della funzione di distanza.
+
+Per calcolare il gradiente vengono fornite in input le variabili $\chi$, $\nu$ ed il DataFrame in cui sono presenti i punti dei consumatori. La funzione restituisce un vettore ($\chi$, $\nu$) che rappresenta il gradiente della funzione.
+```{r}
+gradient <- function(chi, nu, df){
+  res1 <- 0
+  res2 <- 0
+  for(i in c(1:nrow(df))){
+    res1 <- (2*(chi-df$x[i]))/((chi-df$x[i])^2 + 1) + res1
+    res2 <- (2*(nu-df$y[i]))/((nu-df$y[i])^2 + 1) + res2
+  }
+  return(c(res1, res2))
+}
+```
+
+Il metodo del gradiente discendente, invece, è stato implementato tramite la funzione *gradDescent()*, la quale riceve in input diversi parametri:
+
+* df: il DataFrame in cui sono presenti i punti dei consumatori;
+* v.init: un punto con cui inizializzare l'algoritmo;
+* grad: la funzione che restituisce il gradiente della funzione di distanza;
+* passo: il passo di discesa;
+* iters: il numero di iterazione da effettuare.
+
+L'algoritmo resistuisce un vettore contenente il punto (chi, nu) calcolato dal metodo del gradiente discendente.
+```{r}
+gradientDescent <- function(df, v.init, grad, passo, iters){
+  par <- loss <- data.frame(matrix(NA, nrow = iters + 1, ncol = 2))
+  par[1,] <- v.init
+  for(k in 1:iters){
+    loss[k,] <- grad(par[k,1], par[k,2], df)
+    par[k+1,] <- par[k,] - passo * loss[k,]
+  }
+  colnames(par) <- c("chi", "nu")
+  return(c(par[iters + 1,1], par[iters + 1, 2]))
+}
+```
+
+Esempio di esecuzione dell'algoritmo implementato con punto iniziale $(300, 300)$, passo di discesa $0.01$ e numero di iterazioni pari a $1000$:
+```{r}
+gradientDescent(df, c(300, 300), gradient, 0.01, 1000)
+```
+È stato resituito dalla funzione un possibile punto di ottimo locale $(310.14, 303.43)$. Se si provasse a cambiare il punto di partenza, però, si otterrebbe un nuovo possibile minimo locale.
+
+```{r}
+gradientDescent(df, c(100, 140), gradient, 0.01, 1000)
+```
+Fornendo in input il punto $(100, 140)$ si ottiene un nuovo punto $(105.5, 129.7)$.
+
+
+Il miglior modo per ottenere il **minimo globale** della funzione sarebbe applicare un metodo *brute force*, applicando il metodo del gradiente ad un elevato numero di punti. Applicare questo metodo richiederebbe, però, un tempo computazionale eccessivamente elevato.
+
+
+Per trovare un possile ottimo globale è stato creato un algoritmo all'interno del quale i punti ricevuti in input sono stati divisi in venticinque diverse regioni, ed è stato calcolato il punto centrale di ognuno di queste ultime. In questo modo è possibile applicare il metodo del gradiente utilizzando venticinque punti iniziali diversi ed appartenenti a regioni ben definite.
+
+
+Il seguente grafico rappresenta i venticinque punti inizialli e le regioni utilizzate.
+```{r}
+max_x <- max(df$x)
+min_x <- min(df$x)
+max_y <- max(df$y)
+min_y <- min(df$y)
+
+range_x <- (max_x - min_x)/5
+range_y <- (max_y - min_y)/5
+
+#lista di coordinate note
+coord <- list(c(98.3,97.7),c(294.9,97.7),c(491.5,97.7),c(688.1,97.7),c(884.7,97.7),c(98.3,293.1), c(98.3, 488.5),c(98.3, 683.9),c(98.3,879.4),c(294.9,293.1),c(294.9,488.5),c(294.9,683.9),c(294.9,879.3),c(491.5,293.1),c(491.5, 488.5),c(491.5, 683.9),c(491.5, 879.3),c(688.1,293.1), c(688.1,488.5), c(688.1,683.9), c(688.1,879.3), c(884.7, 293.1), c(884.7, 488.5), c(884.7, 683.9), c(884.7, 897.3))
+
+points <- data.frame(matrix(unlist(coord), nrow=25, byrow=T))
+
+plot_region <- ggplot(df, aes(x = x, y = y)) + 
+  geom_point(size = 1) +
+  geom_vline(xintercept =  0) +
+  geom_hline(yintercept =  0) +
+  geom_vline(xintercept =  range_x) +
+  geom_hline(yintercept =  range_y) +
+  geom_vline(xintercept =  range_x + range_x) +
+  geom_hline(yintercept =  range_y + range_y) +
+  geom_vline(xintercept =  range_x + range_x + range_x) +
+  geom_hline(yintercept =  range_y + range_y + range_y) +
+  geom_vline(xintercept =  range_x + range_x + range_x + range_x) +
+  geom_hline(yintercept =  range_y + range_y + range_y + range_y) +
+  geom_vline(xintercept =  range_x + range_x + range_x + range_x + range_x) +
+  geom_hline(yintercept =  range_y + range_y + range_y + range_y + range_y) + 
+  geom_point(points, mapping = aes(X1, X2, col = "red"), show.legend = FALSE) +
+  theme_gray()
+plot_region
+```
+
+L'algoritmo consiste nell'utilizzare i venticinque punti calcolati per inizializzare il metodo del gradiente discendete. Verranno restituiti, quindi, venticinque possibili punti di ottimo che devono essere sostituiti all'interno della funzione di distanza per sapere quale sia l'effettivo punto di minimo globale.
+```{r}
+results <- data.frame(matrix(NA, ncol=3, nrow=25))
+colnames(results) <- c("chi","nu")
+for(i in 1:25){
+  temp <- gradientDescent(df, coord[[i]], gradient, 0.01, iters = 1000)
+  results[i,1] <- temp[1]
+  results[i,2] <- temp[2]
+  results$FO[i] <- fun(results$chi[i], results$nu[i], df)
+}
+
+min_fo <- min(results$FO)
+minpt <- c(results$chi[results$FO == min_fo],results$nu[results$FO == min_fo])
+print(paste("Possibile punto di minimo globale:", "chi:", minpt[1], "nu:", minpt[2]), collapse = " ")
+print(paste0("Valore della funzione di distanza nel possibile punto di minimo globale con i valori (chi, nu) calcolati: ", min_fo))
+```
+Con i parametri passati in input, secondo l'algoritmo il possibile punto di ottimo della funzione è $(305.69, 485.74)$ ed il valore della funzione in tale punto è $2022.06$.
+
+Il seguente grafico rappresenta la densità dei punti rapprensentanti i consumatori. Inoltre, è stato evidenziato il possibile punto di ottimo globale precedentemente trovato. 
+Come è possibile osservare il punto si trova in una posizione centrale rispetto alle tre zone con maggior densità.
+```{r}
+ggplot(df,aes(x=x, y=y))+
+  stat_density2d(aes(alpha=..level..), geom="polygon", show.legend = FALSE) +
+  scale_alpha_continuous(limits=c(0,0.2),breaks=seq(0,0.2,by=0.025))+
+  geom_point(mapping = aes(x = minpt[1], y = minpt[2]), col = "red") +
+  geom_point(df, mapping = aes(x = x, y = y)) +
+  theme_bw()
+```
+
+### Gradiend Descent method with optimr function
+Per effettuare il metodo del gradiente discendente è possibile utilizzare una funzione di R chiamata *optimr()* appartenente alla libreria *optimx* impostando come parametro *method = "CG"*.
+I venticinque punti precedentemente calcolati sono stati utilizzati per effettuare il metodo del gradiente discendente con la funzione citata.
+```{r}
+library(optimx)
+fun.r <- function(st){
+  res <- 0
+  for (i in c(1:nrow(df))) {
+    res <- (log((st[1] - df$x[i])^2 + 1)) + (log((st[2] - df$y[i])^2 + 1)) + res
+  }
+  return(res)
+}
+
+gradient.r <- function(st){
+  res1 <- 0
+  res2 <- 0
+  for(i in c(1:nrow(df))){
+    res1 <- (2*(st[1]-df$x[i]))/((st[1]-df$x[i])^2 + 1) + res1
+    res2 <- (2*(st[2]-df$y[i]))/((st[2]-df$y[i])^2 + 1) + res2
+  }
+  return(c(res1, res2))
+}
+
+results_opr <- data.frame(matrix(NA, ncol=3, nrow=25))
+for(i in 1:25){
+  temp_opr <- optimr(par = coord[[i]], fn = fun.r, gr = gradient.r,  method="CG")
+  results_opr[i,1] <- temp_opr$par[1]
+  results_opr[i,2] <- temp_opr$par[2]
+  results_opr[i,3] <- temp_opr$value
+}
+
+colnames(results_opr) <- c("chi","nu", "FO")
+
+min_fo_opr <- min(results_opr$FO)
+minpt_opr <- c(results_opr$chi[results_opr$FO == min_fo_opr],results_opr$nu[results_opr$FO == min_fo_opr])
+print(paste("Possibile punto di minimo globale:", "chi:", minpt_opr[1], "nu:", minpt_opr[2]), collapse = " ")
+print(paste0("Valore della funzione di distanza nel possibile punto di minimo globale con i valori (chi, nu) calcolati: ", min_fo_opr))
+```
+Come è possibile osservare la funzione *optimr()* restituisce come possibile punto di minimo globale $(310.16, 636.67)$. Se tale punto viene sostituiti all'interno della funzione obiettivo si ottiene il valore $2010.52$, il quale risulta minore rispetto al valore trovato con la funzione *gradientDescent()*.
+ 
+
+Nel seguente grafico viene rappresentato con il colore verde il possibile punto di minimo globale trovato con la funzione *optimr()* ed in rosso il punto trovato con la funzione *gradientDescent()*.
+```{r}
+ggplot(df,aes(x=x,y=y))+
+  stat_density2d(aes(alpha=..level..), geom="polygon", show.legend = FALSE) +
+  geom_point(mapping = aes(x = minpt[1], y = minpt[2]), col = "red") +
+  scale_alpha_continuous(limits=c(0,0.2),breaks=seq(0,0.2,by=0.025))+
+  geom_point(colour="red",alpha=0.02)+
+  geom_point(df, mapping = aes(x = x, y = y)) +
+  geom_point(mapping = aes(x = minpt_opr[1], y = minpt_opr[2]), col = "green") +
+  theme_bw()
+```
+
+
+## Stochastic gradient descent algorithm
+Il metodo del gradiente discendente può richiedere costose valutazioni del gradiente da un punto di vista computazionale. Per questo motivo può essere utilizzato il metodo del gradiente discendente stocastico il quale campiona solo un sottoinsieme dei dati in input.
+
+
+Il metodo del gradiente discendente stocastico è utilizzato principalmente in problemi di minimizzazione in cui la funzione obiettivo contiene una sommatoria del tipo: $$Q(\beta) = \frac{1}{n}\sum_{i = 1}^{n}Q_i(\beta)$$
+dove deve essere stimato il parametro $\beta$ che minimizza $Q(\beta)$. Ciascuna funzione della sommatoria $Q_i$ è associata all'osservazione i-esima nel set di dati.
+Un metodo di discesa del gradiente standard (o **batch**) utilizzato per minimizzare la precedente equazione eseguirà le seguenti iterazioni: $$\beta_{t+1} := \beta_t\nabla Q(\beta_t) = w_t - \frac{\gamma}{n}\sum_{i=1}^{n}\nabla Q_i(\beta_t)$$
+dove $\gamma$ rappresenta la dimensione del passo di discesa ed è chiamato anche **learning rate**.
+
+
+Il metodo del gradiente discendente stocastico, dunque, permette di non calcolare il gradiente per ogni punto, ma, più semplicemente, consiste nel calcolare il gradiente su più campioni di dati, chiamati **mini-batch**.
+
+
+Il metodo del gradiente discendente stocastico è stato implementato tramite la funzione *stoch_gradDescent()*, la quale, come la funzione *gradientDescent()*, riceve in input:
+
+* df: il DataFrame in cui sono presenti i punti dei consumatori;
+* start: un punto con cui inizializzare l'algoritmo;
+* gradient: la funzione che restituisce il gradiente della funzione di distanza;
+* lr: learning rate;
+* iters: il numero di iterazione da effettuare.
+```{r}
+stoch_gradDescent <- function(df, start, gradient, lr, iters){
+  set.seed(29052019)
+  beta <- start
+  betaIter <- data.frame(matrix(NA, nrow = iters, ncol = 2))
+  colnames(betaIter) <- c("chi","nu")
+  for (i in 1:iters) {
+    df_temp <- data.frame(as.matrix( df[sample(nrow(df), 15), ] ))
+    beta <- beta - lr  * gradient(beta[1], beta[2], df_temp) 
+    betaIter[i,] <- beta
+  }
+ return(betaIter)
+}
+```
+
+Anche il metodo del gradiente discendente stocastico è stato testato sui venticinque punti inizialmente calcolati.
+```{r}
+results_sto <- data.frame(matrix(NA, ncol=3, nrow=25))
+colnames(results_sto) <- c("chi","nu", "FO")
+iter <- 1000
+for(i in 1:25){
+  temp_sto <- stoch_gradDescent(df, coord[[i]], gradient, 0.01, iter)
+  results_sto[i,1] <- temp_sto[iter, 1]
+  results_sto[i,2] <- temp_sto[iter, 2]
+  results_sto$FO[i] <- fun(results_sto[i, 1], results_sto[i, 2], df)
+}
+
+min_fo_sto <- min(results_sto$FO)
+minpt_sto <- c(results_sto$chi[results_sto$FO == min_fo_sto],results_sto$nu[results_sto$FO == min_fo_sto])
+print(paste("Possibile punto di minimo globale:", "chi:", minpt_sto[1], "nu:", minpt_sto[2]), collapse = " ")
+print(paste0("Valore della funzione di distanza nel possibile punto di minimo globale con i valori (chi, nu) calcolati: ", min_fo_sto))
+```
+
+Come è possibile osservare la funzione *stoch_gradDescent()* restituisce come possibile punto di minimo globale $(295.77, 487.07)$. Se tale punto viene sostituiti all'interno della funzione obiettivo si ottiene il valore $2036.93$, il quale risulta maggiore sia rispetto al valore trovato con la funzione *gradientDescent()*, che rispetto a quello trovato con la funione *optimr()*.
+
+
+Nel seguente grafico viene rappresentato con il colore verde il possibile punto di minimo globale trovato con la funzione *optimr()*, in rosso il punto trovato con la funzione *gradientDescent()* ed in blu il punto trovato con la funzione *stoch_gradDescent()*.
+```{r}
+ggplot(df,aes(x=x,y=y))+
+  stat_density2d(aes(alpha=..level..), geom="polygon", show.legend = FALSE) +
+  geom_point(mapping = aes(x = minpt[1], y = minpt[2]), col = "red") +
+  scale_alpha_continuous(limits=c(0,0.2),breaks=seq(0,0.2,by=0.025))+
+  geom_point(colour="red",alpha=0.02)+
+  geom_point(df, mapping = aes(x = x, y = y)) +
+  geom_point(mapping = aes(x = minpt_opr[1], y = minpt_opr[2]), col = "green") +
+  geom_point(mapping = aes(x = minpt_sto[1], y = minpt_sto[2]), col = "blue") +
+  theme_bw()
+```
+
+In conclusione, nella seguente tabella vengono riportati i possibili punti di minimo rilevati dai tre algoritmi applicati con il corrispettivo valore della funzione di distanza.
+```{r}
+table1 <- data.frame(
+  Metodo_utilizzato = c("Metodo del gradiente discendente", "Metodo del gradiente discendente optimr()", "Metodo del gradiente discendente stocastico"),
+  chi = c("305.69", "310.16", "295.77"),
+  nu = c("485.74", "636.67", "487.07"),
+  Valore_della_funzione_di_distanza = c("2022.05", "2010.53", "2036.93")
+)
+
+kable(table1) %>%
+  kable_styling(bootstrap_options = "striped", "responsive", full_width = F)
+```
+
+Naturalmente, il possibile punto di minimo globale migliore è stato trovato dalla funzione *optimr()*, in quanto, mentre negli altri due algoritmi è possibile scegliere il passo di discesa ed il numero di iterazioni da utlizzare, nella funzione *optimr()* questi due parametri non sono scelti dall'utente.
+
+### Analysis for different values of lr
+Nel seguente codice viene eseguito il metodo del gradiente discendente stocastico partendo, sullo base di una scelta arbitraria, dal punto $(290, 490)$ ma eseguendolo con quattro diversi learning rate.
+```{r}
+# run for lr = 0.001
+result1 <- as.data.frame(stoch_gradDescent(df, c(320, 320), gradient,  0.001, 1000))
+
+# run for lr = 0.01
+result2 <- as.data.frame(stoch_gradDescent(df, c(320, 320), gradient, 0.01, 1000))
+
+# run for lr = 0.1
+result3 <- as.data.frame(stoch_gradDescent(df, c(320, 320), gradient, 0.1, 1000))
+
+# run for lr = 1
+result4 <- as.data.frame(stoch_gradDescent(df, c(320, 320), gradient, 1.0, 1000))
+```
+
+
+```{r}
+arrangeAndPlot <- function(res, lr){
+library(ggplot2)
+library(reshape2)
+names(res)[1] <- "chi"
+names(res)[2] <- "nu"
+result= cbind(x=seq(1:1, nrow(res)), res)
+mdf <- reshape2::melt(result, id.var = "x")
+ggplot(data = mdf) +
+  aes(x = x) +
+  geom_line(aes(x = x, y = value, colour = variable), size=0.5) +
+  labs(title = paste('Convergence for lr =', lr, sep = " "),
+    x = 'Iterations',
+    y = 'values') +
+  theme_bw()
+}
+```
+
+```{r}
+arrangeAndPlot(result1, '0.001')
+```
+
+Come è possibile osservare dal grafico, con lr = 0.001, non viene raggiunta la convergenza entro le mille iterazioni.
+```{r}
+arrangeAndPlot(result2, '0.01')
+```
+
+Come per lr = 0.001, anche con lr = 0.01 non viene raggiunta la convergenza entro le mille iterazioni.
+
+```{r}
+arrangeAndPlot(result3, '0.1')
+```
+
+Come è possibile osservare dal grafico con lr = 0.1 il valore ottimo viene trovato quasi subito per la $\nu$, dopo circa 200 osservazioni, infatti, il grafico rimane all'incirca sullo stesso punto, ciò significa che si trova su un ottimo locale.
+Lo stesso comportamento si ottiene la $\chi$ ma in maniera più lenta, infatti il grafico di quest'ultima si stabilizza sullo stesso punto dopo circa cinquecento osservazioni. In conclusione il lr = 0.1 sembra far oscillare le variabili attorno ai loro valori ottimali.
+
+```{r}
+arrangeAndPlot(result4, '1')
+```
+
+Per lr = 1.0, il grafico mostra che il valore risulta essere troppo grande come evidenziato dal pattern molto rumoroso. L'utilizzo di un lr troppo elevato può causare tale comportamento in quanto l'algoritmo può continuamente superare i valori ottimali che si stanno cercando.

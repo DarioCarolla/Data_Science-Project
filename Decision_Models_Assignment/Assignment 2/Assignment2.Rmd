@@ -1,0 +1,444 @@
+---
+title: "Dario Carolla 807547 - Assignment 2"
+output:
+  html_document: default
+  word_document: default
+  editor_options:
+    chunk_output_type: console
+  pdf_document: default
+---
+##Alloy Corporation
+###Introduzione
+L'azienda Manifacturing INC (MNC) produce quattro diverse leghe metalliche: A, B, C e D. Lo studio proposto consiste nel controllare i margini dell'azienda per assicurarsi che funzionino nel modo più efficiente possibile.
+
+###Marketing Demands
+Per soddisfare le richieste di marketing per la prossima settimana, MNC ha bisogno di produrre
+almeno 
+
+* 1.200 libbre del prodotto A
+* tra 450 e 650 libbre del prodotto B
+* non più di 120 libbre del prodotto C
+* non più di 150 libbre di prodotto D.
+
+###Production Requirements
+Ogni libbra del prodotto A, B, C e D contiene, rispettivamente, il 55%, il 45%, il 25% e il 100% di alluminio costituito da rame.
+L'azienda ha 1300 libbre di alluminio e 900 libbre di rame da utilizzare nella prossima settimana.
+I vari prodotti sono realizzati utilizzando quattro diverse macchine: forgia, alesatore, limatrice e pialla. La seguente tabella riepiloga il tempo richiesto da ciascun prodotto su ciascuna macchina. Ogni macchina ha a disposizione 60 ore di tempo.
+<br>
+<br>
+
+<center>
+![](/Users/dario/Downloads/minutes.png)
+</center>
+
+<br>
+<br>
+
+###Financial summary
+Nella seguente immagine, invece, è rappresentato il riepilogo finanziario delle operazioni settimanali medie della MNC nel corso dell'ultimo trimestre.
+<br>
+<br>
+
+<center>
+![](/Users/dario/Downloads/costi.png)
+</center>
+
+<br>
+<br>
+
+
+###Questions
+####Question A
+Il responsabile sostiene che la società dovrebbe smettere di produrre i propri prodotti B e C. Giungere a questa conclusione senza uno studio approfondito sarebbe superficiale. Limitandosi ad osservare il netprofit per ogni prodotto nella precedente tabella sarebbe naturale pensare che l'azienda dovrebbe smettere di produrre il prodotto B in quanto il netprofit è negativo. Mentre non è possibile giungere alla stessa conclusione per il prodotto C il cui netprofit è positivo.
+
+####Question B
+Per creare il modello di programmazione lineare per il problema proposto, sono stati calcolati i profitti marginali, ovvero una misura che indica il profitto ricavato dalla vendita di un’unità aggiuntiva di un elemento, spesso utilizzata per decidere eventuali incrementi o decrementi nella produzione di uno o più elementi, nel seguente modo:
+$$\frac{SalesRevenue−VariablesCosts}{PoundsSold}$$
+I profitti marginali sono stati utilizzati come coefficienti delle variabili nella funzione obiettivo. In particolare, $A=2.141,\ B=1.125,\ C=4,\ D=2.116$
+
+Il modello proposto è il seguente:
+
+$Funzione \ obiettivo:$
+
+$Max \ 2.141A + 1.125BB + 4C + 2.116D$
+
+$A: \ numero \ di \ libbre \ per \ il \ prodotto \ A$
+
+$B: \ numero \ di \ libbre \ per \ il \ prodotto \ B$
+
+$C: \ numero \ di \ libbre \ per \ il \ prodotto \ C$
+
+$D: \ numero \ di \ libbre \ per \ il \ prodotto \ D$
+
+$Vincoli:$
+
+$1,2A + B + C + 1,5D \le 3600$
+
+$1,75A + B + C + 1,5D \le 3600$
+
+$1,3A + 0,6B + 0,4C \le 3600$
+
+$2,5A + 1,2B + 2C + 1,5D \le 3600$
+
+$0,55A + 0,45B + 0,25C + D \le 1300$
+
+$0,45A + 0,55B + 0,75C \le 900$
+
+$A \ge 1200$
+
+$450 \le B \le 650$
+
+$C \le 120$
+
+$D \le 150$
+
+$A, B, C, D \ge 0$
+
+####Question C
+Il codice utilizzato per implementare il modello proposto è il seguente:
+<br>
+**Creazione del modello**
+```{r, results='hide'} 
+library("lpSolveAPI")
+model = make.lp(0,4) #definizione del modello
+lp.control(model, sense="max") #massimizzazione
+set.objfn(model,obj=c(2.141, 1.125, 4, 2.116))  #definizione della funzione obiettivo utilizzando i coefficienti di profitto
+```
+
+**Definizione dei vincoli**
+```{r, results='hide'}
+row.add.mode(model,"on")
+add.constraint(model,
+               xt=c(1.2, 1, 1, 1.5),
+               type="<=",rhs=3600,
+               indices=c(1:4))   # Minuti disponibili per Forgia
+
+add.constraint(model,
+               xt=c(1.75, 1, 1, 1.5),
+               type="<=",rhs=3600,
+               indices=c(1:4))   # Minuti disponibili per Alesatrice
+
+add.constraint(model,
+               xt=c(1.30, 0.60, 0.40),
+               type="<=",rhs=3600,
+               indices=c(1:3))   # Minuti disponibili per Limatrice
+
+add.constraint(model,
+               xt=c(2.50, 1.20, 2, 1.50),
+               type="<=",rhs=3600,
+               indices=c(1:4))   # Minuti disponibili per Pialla
+
+add.constraint(model,
+               xt=c(0.55, 0.45, 0.25, 1),
+               type="<=",rhs=1300,
+               indices=c(1:4))   # Quantita' di alluminio disponibile
+
+add.constraint(model,
+               xt=c(0.45, 0.55, 0.75),
+               type="<=",rhs=900,
+               indices=c(1:3))   # Quantita' di rame disponibile
+row.add.mode(model,"off")
+
+```
+
+**Definizione dei limiti superiori ed inferiori di A, B, C e D**
+```{r}
+set.bounds(model,lower = c(1200, 450, 0, 0), upper = c(100000000, 650, 120, 150)) 
+```
+
+**Modello generato**
+```{r}
+model
+```
+
+**Soluzione del modello**
+```{r}
+solve(model)
+```
+
+```{r}
+get.variables(model) # valori ottimali per le variabili decisionali
+```
+
+```{r}
+get.objective(model) # valore ottimale per la funzione obiettivo
+```
+<br>
+
+####Question D
+Attraverso il precedente codice è possibile giungere ai seguenti risultati:
+
+$Valore \ ottimo \ A: 1200$
+
+$Valore \ ottimo \ B: 450$
+
+$Valore \ ottimo \ C: 30$
+
+$Valore \ ottimo \ D: 0$
+
+$Valore \ ottimo \ funzione \ obiettivo : 3195.45$
+
+####Question E
+Per eseguire l'analisi di sensitività, invece, è stato eseguito il seguente codice.
+
+Tramite la seguente funzione è possibile osservare il valore di ogni vincolo del modello.
+```{r}
+get.constraints(model) 
+```
+
+Tramite la seguente funzione, invece, è possibile ottenere i prezzi ombra di ogni elemento associato al problema e consente, quindi, di conoscere l’incremento/decremento del guadagno in seguito ad un’aggiunta/rimozione unitaria nella richiesta del prodotto. Inoltre restituisce i valori dei limiti inferiori e superiri delle variabili duali.
+In particolare:
+
+* $duals: prezzi ombra dei vincoli e costi ridotti delle variabili.
+* $dualsfrom: valori dei limiti inferiori delle variabili duali.
+* $dualstill: valori dei limiti superiori delle variabili duali.
+```{r}
+get.sensitivity.rhs(model)
+```
+
+Tramite il precedente codice è possibile ricavare le seguenti tabelle.
+
+**Sensitività per le variabili** 
+```{r, echo=FALSE}
+if(require(kableExtra)==FALSE) install.packages("kableExtra")
+
+table1 <- data.frame(
+  Variabile = c("A", "B", "C", "D"),
+  Valore_Finale = c("1200", "450", "30", "0"),
+  Costo_Ridotto = c("-2,859", "-1,275", "0", "-0,884"),
+  Intervallo_Consentito = c("1128 <= A <= 1224", "300 <= B <= 500", "-INF <= C <= +INF", "-120 <= D <= 4")
+)
+
+kable(table1) %>%
+  kable_styling(bootstrap_options = "striped", "responsive", full_width = F)
+```
+
+**Sensitività per i vincoli** 
+```{r, echo=FALSE}
+if(require(kableExtra)==FALSE) install.packages("kableExtra")
+
+table2 <- data.frame(
+  Vincolo = c("V1 Minuti per forgia", "V2 Minuti per alesatrice", "V3 Minuti per limatrice", "V4 Minuti per pialla", "V5 quantità alluminio", "V6 quantità rame"),
+  Valore_Finale = c("1920", "2580", "1842", "3600",  "870",  "810"),     
+  Prezzo_Ombra = c("0", "0", "0", "2", "0", "0"),
+  Intervallo_Consentito = c("-INF <= V1 <= +INF", "-INF <= V2 <= +INF", "-INF <= V3 <= +INF", "3540 <= V4 <= 3780", "-INF <= V5 <= +INF", "-INF <= V6 <= +INF")
+)
+
+kable(table2) %>%
+  kable_styling(bootstrap_options = "striped", "responsive", full_width = F)
+```
+
+**Sensitività per i coefficienti**
+```{r, echo=FALSE}
+if(require(kableExtra)==FALSE) install.packages("kableExtra")
+
+table3 <- data.frame(
+  Coefficiente = c("C1", "C2", "C3", "C4"),
+  Valore = c("2,141", "1,125", "4", "2,116"),
+  Intervallo_Consentito = c("-INF <= C1 <= 5", "-INF <= C2 <= 2", "2,821 <= C3 <= +INF", "-INF <= C4 <= 3")
+)
+
+kable(table3) %>%
+  kable_styling(bootstrap_options = "striped", "responsive", full_width = F)
+
+```
+
+####Question F
+La funzione non è degenere in quanto sia l'incremento che il decremento consentiti, affinché la soluzione continui ad essere ottimale, sono diversi da zero per qualsiasi variabile e risorsa. Inoltre, un'altra dimostrazione a favore di questa tesi è che la funzione **solve** resituisce il valore zero, ciò indica che la soluzione è ottima e non degenere.
+
+####Question G
+La soluzione può essere definita unica in quanto, trattandosi di un problema di ottimizzazione lineare ed avendo utilizzato il metodo del simplesso, se viene trovata una soluzione ottima, quest'ultima è anche unica. Questa affermazione può anche essere dimostrata tramite la seguente funzione, la quale restituisce il numero di soluzioni ottime all'interno di un problema di programmazione lineare.
+
+```{r}
+get.solutioncount(model)
+```
+
+####Question H
+Il prodotto che MNC dovrebbe decrementare è il prodotto A in quanto il suo costo ridotto è -2.859, il più negativo rispetto agli altri costi ridotti. Decrementando di un'unità il prodotto A si otterrebbe un guadagno di 2.859.
+
+####Question I
+Osservando i costi ridotti l'unica unità che avrebbe senso incrementare sarebbe C, in quanto i costi ridotti di A, B e D sono negativi, dunque, un loro aumento comporterebbe una perdita. Mentre C ha costo ridotto pari a 0. In conclusione si potrebbe aumentare la produzione dell'unità C ma ciò non comporterebbe un guadagno.
+
+####Question J
+La risorsa che MNC dovrebbe aumentare sono i minuti disponibili per l'utilizzo della Pialla.
+```{r, echo=FALSE}
+if(require(kableExtra)==FALSE) install.packages("kableExtra")
+
+table2 <- data.frame(
+  Vincolo = c("V1 Minuti per forgia", "V2 Minuti per alesatrice", "V3 Minuti per limatrice", "V4 Minuti per pialla", "V5 quantità alluminio", "V6 quantità rame"),
+  Valore_Finale = c("1920", "2580", "1842", "3600",  "870",  "810"),     
+  Prezzo_Ombra = c("0", "0", "0", "2", "0", "0"),
+  Intervallo_Consentito = c("-INF <= V1 <= +INF", "-INF <= V2 <= +INF", "-INF <= V3 <= +INF", "3540 <= V4 <= 3780", "-INF <= V5 <= +INF", "-INF <= V6 <= +INF")
+)
+
+kable(table2) %>%
+  kable_styling(bootstrap_options = "striped", "responsive", full_width = F)
+```
+Come è possibile osservare dalla seguente tabella già mostrata in precedenza, il valore finale relativo al vincolo riguardante l'utilizzo della Pialla sfrutta tutti i 3600 minuti a disposizione. Mentre tramite la colonna *Intervallo_Consentito* è possibile notare che questo vincolo può essere aumentato al massimo di 180 minuti affinchè la soluzione ottimale non cambi. Infine, il suo prezzo ombra è pari a 2, ciò vuol dire che, aumentando il vincolo di 180 minuti si otterebbe un aumento del guadagno di 360. L'azienda, dunque, potrebbe pagare al massimo 2$ al minuto. 
+
+####Question K
+L'azienda non dovrebbe acquistare più rame in quanto con le attuali quantità quest'ultimo non viene utilizzato completamente, infatti, la quantità disponibile di rame è di 900 libbre, ma ne vengono utilizzate solamente 810.
+
+####Question L
+Il coefficiente di A può andare da -inf a 5 affinché la soluzione ottimale non cambi, dunque, anche se viene diminuito di -0.25 la soluzione ottima rimarrebbe invariata.
+
+
+##Modello con costi fissi
+Ai fini dell'assignment nei precedenti punti è stato utilizzato un modello che non tenesse conto dei costi fissi, in quanto, per inserire questi ultimi all'interno del problema è necessario utilizzare delle variabili binarie, che non permettono lo svolgimento di un'analisi di sensitività. 
+\br
+Dunque, il precedente modello non può essere definito corretto in quanto, all'interno del problema proposto, alla produzione di ogni materiale è associato un costo fisso che può essere aggiunto al modello tramite l'utilizzo di quattro variabili binarie, una per ogni materiale.
+\br
+Il nuovo modello può essere generato nel seguente modo:
+
+$Funzione \ obiettivo$
+
+$max(2.14A+1.125B+4C+2.116D−(600y1+500y2+250y3+300y4))$
+
+$A: \ numero \ di \ libbre \ per \ il \ prodotto \ A$
+
+$B: \ numero \ di \ libbre \ per \ il \ prodotto \ B$
+
+$C: \ numero \ di \ libbre \ per \ il \ prodotto \ C$
+
+$D: \ numero \ di \ libbre \ per \ il \ prodotto \ D$
+
+$y1, \ y2, \ y3, \ y4, \ le \ variabili \ binarie \ associate \ rispettivamente \ ad \ A, \ B, \ C \ e \ D.$
+
+$Vincoli:$
+
+$1.2A+B+C+1.5D \le 3600$
+
+$1.75A+B+C+1.5D \le 3600$
+
+$1.3A+0.6B+0.4C \le 3600$
+
+$2.5A+1.2B+2C+1.5D \le 3600$
+
+$A−100000y1 \le 0$
+
+$B−100000y2 \le 0$
+
+$C−100000y3 \le 0$
+
+$D−100000y4 \le 0$
+
+$A \ge 1200$
+
+$450 \le B \le 650$
+
+$C \le 120$
+
+$D \le 150$
+
+$0 \le y1 \le 1$
+
+$0 \le y2 \le 1$
+
+$0 \le y3 \le 1$
+
+$0 \le y4 \le 1$
+
+**Creazione del modello**
+```{r, results='hide'} 
+library("lpSolveAPI")
+model2 = make.lp(0, 8)
+lp.control(model2, sense="max")
+set.type(model2, columns = c(5:8), type = "binary")
+set.objfn(model2, obj=c(2.141,1.125,4,2.116,-600,-500,-250,-300))
+```
+
+**Definizione dei vincoli**
+```{r, results='hide'}
+row.add.mode(model2,"on")
+add.constraint(model2, 
+               xt=c(1.2, 1, 1, 1.5),
+               type="<=",
+               rhs=3600,
+               indices=c(1:4))
+
+add.constraint(model2, 
+               xt=c(1.75, 1, 1, 1.5),
+               type="<=",
+               rhs=3600,
+               indices=c(1:4))
+
+add.constraint(model2, 
+               xt=c(1.3, 0.6, 0.4, 0),
+               type="<=",
+               rhs=3600,
+               indices=c(1:4))
+
+add.constraint(model2, 
+               xt=c(2.5, 1.2, 2, 1.5),
+               type="<=",
+               rhs=3600,
+               indices=c(1:4))
+
+add.constraint(model2, 
+               xt=c(0.55, 0.45, 0.25, 1),
+               type="<=",
+               rhs=1300,
+               indices=c(1:4))
+
+add.constraint(model2, 
+               xt=c(0.45, 0.55, 0.75, 0),
+               type="<=",
+               rhs=900,
+               indices=c(1:4))
+
+add.constraint(model2, 
+               xt=c(1, -100000),
+               type="<=",
+               rhs=0,
+               indices=c(1,5))
+
+add.constraint(model2, 
+               xt=c(1, -100000),
+               type="<=",
+               rhs=0,
+               indices=c(2,6))
+
+add.constraint(model2, 
+               xt=c(1, -100000),
+               type="<=",
+               rhs=0,
+               indices=c(3,7))
+
+add.constraint(model2, 
+               xt=c(1, -100000),
+               type="<=",
+               rhs=0,
+               indices=c(4,8))
+row.add.mode(model2,"off")
+
+```
+
+**Definizione dei limiti superiori ed inferiori di A, B, C, D e delle relative variabili binarie**
+```{r}
+set.bounds(model2, lower=c(1200, 450, 0,0, 0, 0, 0, 0), upper=c(Inf, 650, 120, 150, 1, 1, 1, 1))
+```
+
+**Modello generato**
+```{r}
+model2
+```
+
+**Soluzione del modello**
+```{r}
+solve(model2)
+```
+
+```{r}
+get.variables(model2) # valori ottimali per le variabili decisionali
+```
+
+```{r}
+get.objective(model2) # valore ottimale per la funzione obiettivo
+```
+
+È possibile osservare come tenendo in cosiderazione i costi fissi associati alla produzione dei materiali le soluzioni del problema cambino. In particolare:
+
+* I valori ottimi di A e di D rimangono invariati
+* Il valore ottimo di B nel primo modello era 450 mentre ora è 500;
+* Il valore ottimo di C nel primo modello era 30 mentre ora è 0;
+* Il valore ottimo della funzione obiettivo nel primo modello era 3195.45, mentre, tenendo conto dei costi fissi è 2031.7

@@ -1,0 +1,39 @@
+name: MC Manufacturing2
+variables:
+    Quantity1: 100
+    Quantity2: 200
+    Fixed Setup Cost: 250
+    New FSC: 50
+    Marginal Manufacturing Cost: 2
+    Disco pay: 5
+    cost research: 25
+    cost_100: Quantity1 * Marginal Manufacturing Cost + Fixed Setup Cost
+    NewC_100: Quantity1 * Marginal Manufacturing Cost + New FSC
+    cost_200: Quantity2 * Marginal Manufacturing Cost + Fixed Setup Cost
+    Revenue100: Disco pay * Quantity1
+    Revenue200: Disco pay * Quantity2
+    Net_profit1: Revenue100 - cost_200
+    Net_profit2: Revenue200 - cost_200
+    Net_profit3: Revenue100 - cost_100 - cost research
+    Net_profit4: Revenue200 - NewC_100 - cost_100 - cost research
+type: decision
+Research:
+    type: chance
+    Successful - Initially manufacture 100:
+        p: 0.4
+        type: chance
+        DISCO buy 100:
+            p: 0.5
+            payoff: Net_profit3
+        DISCO buy 200:
+            p: 0.5
+            payoff: Net_profit4
+    Not Successful - Initially manufacture 200:
+        p: 0.6
+        type: chance
+        DISCO buy 100:
+            p: 0.5
+            payoff: Net_profit1
+        DISCO buy 200:
+            p: 0.5
+            payoff: Net_profit2

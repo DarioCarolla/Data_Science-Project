@@ -1,0 +1,129 @@
+---
+title: "Dario Carolla 807547 - Assignment 1"
+output:
+  html_document: default
+  word_document: default
+  editor_options:
+    chunk_output_type: console
+  pdf_document: default
+---
+```{r, echo=FALSE, warning=FALSE, message=FALSE} 
+#Librerie richieste
+library(yaml)
+library(radiant)
+library(radiant.model)
+```
+
+Il problema proposto consiste nell'ottimizzazione dei guadagni dell'azienda MC Manufacturing. Per risolverlo è stato utilizzato il seguente **decision tree**, all'interno del quale le unità di produzione ed i relativi guadagni sono stati espessi in migliaia.
+```{r}
+tree = yaml.load_file(input = "/Users/dario/Desktop/Università/Decision\ Models/Assignment\ 1/dtree_input.yaml")
+result = dtree(yl = tree)
+plot(result, final = FALSE)
+```
+Come è possibile osservare l'abero si divide inizialmente in due rami:
+
+* 100 boards: corrisponde al caso in cui MC Manufacturing produca inizialmente solo 100.000 schede. Al termine di questo ramo vi è uno *Chance node* il quale si divide in due ulteriori rami:
+    + DISCO Buy 100: rappresenta la possibilità che DISCO acquisti solo 100.000 schede e non si avvalga della possibilità di acquistarne altre 100.000. Questa possibilità ha una probabilità dello 0.5000 e porterebbe ad un guadagno di $50.000 per MC Manufacturing
+    + DISCO Buy 200: rappresenta la possibilità che DISCO acquisti 200.000 schede. Questa possibilità ha una probabilità dello 0.5000 e porterebbe ad un guadagno di $100.000 per MC Manufacturing
+  
+* 200 board: corrisponde al caso in cui MC Manufacturing produca sin dall'inizio 200.000 schede. Al termine di questo ramo vi è uno *Chance node* il quale si divide in due ulteriori rami:
+    + DISCO Buy 100: rappresenta la possibilità che DISCO acquisti solo 100.000 schede e non si avvalga della possibilità di acquistarne altre 100.000. Questa possibilità ha una probabilità dello 0.5000 e porterebbe ad una perdita di $150.000 per MC Manufacturing
+    + DISCO Buy 200: rappresenta la possibilità che DISCO acquisti 200.000 schede. Questa possibilità ha una probabilità dello 0.5000 e porterebbe ad un guadagno di $350.000 per MC Manufacturing
+
+All'interno del decision tree i costi di produzione di MC Manufacturing sono stati calcolati all'interno delle variabili utilizzate per la creazione dell'albero, senza specificare un costo fisso, dunque considerando i costi variabili. Infatti, l'azienda ha la possibilità di decidere se produrre sin dall'inizio 200.000 schede o se produrne 100.000 e, solo nel caso in cui vengano richieste, produrne successivamente altre 100.000.
+
+###Expected value
+Per decidere quale alternativa selezionare in un problema decisionale si necessita di un criterio decisionale. L'ottimizzazione dell'**Expected Value** è un criterio valido per prendere una decisione che tenga conto dei possibili risultati per ogni decisione alternativa e della probabilità che ogni risultato si verifichi.
+L'alternativa con il massimo Expected value rappresenta il miglior percorso di scelta in base alle informazioni che si possiedono.
+
+```{r}
+summary(result, input = FALSE, output = TRUE)
+plot(result, final = TRUE)
+```
+
+Il risultato ottenuo evidenzia che, scegliendo secondo l’Expected Value, la scelta giusta da fare per la produzione è rappresentata dal ramo *200 boards*, che equivale alla produzione immediata di 200.000 schede.
+
+###Utility Function and Certainty Equivalent
+####Utility Function
+Per i decisori avversi al rischio, nelle decisioni che comportano profitti, viene utilizzata la funzione esponenziale che ha la seguente forma:
+
+$$U(x) = 1-e^{x/R}$$
+
+dove *U(x)* rappresenta la funzione di utilità, *x* è la misura di valutazione, *R* è una costante chiamata tolleranza al rischio (che nel problema proposto corrisponde a 100.000) ed *e* rappresenta la funzione esponenziale. Quando x aumenta, U(x) si avvicina ad 1.
+La Utility Function, applicata al problema, con R = $100.000, possiede il seguente andamento:
+```{r}
+utilityFunctionExp <- function(X, R) { #funzione per Utility Function
+res <- 1- exp(-X/R)
+return(res)
+}
+
+x = seq(from = -150, to = 350, by = 10)
+plot(x, utilityFunctionExp(x, 100), type="l", col="blue", ylab="Utility Function", xlab="Evaluation Measure")
+```
+
+####Certainty Equivalent
+Il Certainty Equivalent per la funzione esponenziale utilizzata in questo problema è:
+
+$$CE = -R * ln (1 - E [U])$$
+```{r}
+CertEquivalent = function(EU, R){ #funzione per Certainty Equivalent
+CE = -R*ln(1-EU)
+return(CE)
+}
+
+branch1 <- c(50, 100)
+branch2 <- c(-150, 350)
+profit <- c(branch1, branch2)
+
+#Calcolo valori della funzione di utilità
+UF1 = utilityFunctionExp(branch1, 100)
+UF1_A = 0.5*UF1[1]+0.5*UF1[2]
+UF2 = utilityFunctionExp(branch2, 100)
+UF2_A = 0.5*UF2[1]+0.5*UF2[2]
+UF_value <- c(UF1_A, UF2_A)
+
+#Certain Equivalency
+CE_vett <- CertEquivalent(UF_value, 100)
+print(paste0("Certain Equivalency per il primo ramo: ", CE_vett[1]))
+print(paste0("Certain Equivalency per il secondo ramo: ", CE_vett[2]))
+print(paste0("Certain Equivalency maggiore: ", max(CE_vett)))
+```
+A differenza dei risultati conseguiti con le Expected Value, il risultato ottenuto, considerando la propensione al rischio, è migliore per il primo ramo dell’albero, che equivale alla produzione iniziale pari a sole 100.000 schede.
+
+###Modification of the process
+Per la decisione del punto precedente, MC Manufacturing ha creato una nuova opzione: può condurre alcune ricerche e sviluppi nel tentativo di abbassare i fixed setup cost associati alla produzione di un lotto di schede PC. La ricerca e lo sviluppo costeranno $25.000 con una probabilità di successo pari a 0.4.
+Nel caso in cui dovesse avere successo, il fixed setup cost per lotto verrà ridotto a $50.000. Se la ricerca e lo sviluppo non dovessere avere successo, non ci sarà alcuna riduzione dei costi.
+Per risolvere questo nuovo problema è stato utilizzato il seguente decision tree:
+```{r}
+tree = yaml.load_file(input = "/Users/dario/Desktop/Università/Decision\ Models/Assignment\ 1/dtree_modification_input.yaml")
+result_2 = dtree(yl = tree)
+plot(result_2, final = FALSE)
+```
+A differenza dell'albero iniziale, è stato aggiunto un secondo *Decision node* nel ramo in cui si scelglie di produrre inizialmente 100.000 schede, tramite il quale viene considerata la possibilità di svolgere o non la ricerca. Nel caso in cui ne vengano prodotte direttamente 200.000, invece, non avrebbe senso eseguire la ricerca e non viene dunque introdotta questa possibilità.
+
+Anche in questo caso, per decidere quale alternativa selezionare, sono state utilizzare le Expected value.
+```{r}
+summary(result_2, input = FALSE, output = TRUE)
+plot(result_2, final = TRUE)
+```
+
+Come è possibile osservare dagli Expected value ottenuti, l’opzione migliore rimane la precedente, ovvero produrre 200.000 unità di merce immediatamente, pertanto il processo di ricerca e sviluppo non viene preso in considerazione.
+
+###Value of Information
+Nell'ultimo caso viene considerata la situazione in cui venga pagato un esperto per conoscere l'esito del processo di ricerca e sviluppo.
+Per calcolare il valore della **Perfect Information** è stato utilizzato il seguente decision tree:
+```{r}
+tree = yaml.load_file(input = "/Users/dario/Desktop/Università/Decision\ Models/Assignment\ 1/dtree_PF_input.yaml")
+result_3 = dtree(yl = tree)
+plot(result_3, final = FALSE)
+```
+All'interno di questo albero si considera solo il caso in cui la ricerca venga effettuata e si suppone che l'esito di quest'ultima sia conosciuto.
+Anche in quest'ultimo caso, per decidere quale alternativa selezionare, sono state utilizzare le Expected value.
+```{r}
+summary(result_3, input = FALSE, output = TRUE)
+plot(result_3, final = TRUE)
+```
+Il risultato offerto evidenzia come la conoscenza del fattore analizzato influisca sul risultato in modo significativo, facendo passare l’EV dai precedenti $100.000 alla cifra di $120.000. Pertanto il valore dell’informazione perfetta è di $20.000.
+
+
+
