@@ -1,0 +1,6 @@
+Link Tableau Visualization:
+DataViz1: https://public.tableau.com/views/PanoramicacampionatoF12019/Panoramicacampionato?:display_count=y&:origin=viz_share_link
+DataViz2: https://public.tableau.com/views/PanoramicacampionatoF12019/GranpremioGermania?:display_count=y&:origin=viz_share_link
+DataViz3: https://public.tableau.com/views/PanoramicacampionatoF12019/Statistichegara?:display_count=y&:origin=viz_share_link
+DataViz4: https://public.tableau.com/views/PanoramicacampionatoF12019/TweetGPGermania?:display_count=y&:origin=viz_share_link
+DataViz5: https://public.tableau.com/views/PanoramicacampionatoF12019/Pilotiescuderie?:display_count=y&:origin=viz_share_link
